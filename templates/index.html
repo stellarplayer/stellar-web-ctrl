@@ -50,6 +50,7 @@ input[type=range]:focus::-webkit-slider-runnable-track {
     </style>
 </head>
 <body>
+    <div id="error" style="text-align:center;font-size: 2rem;color:#FF0000"></div>
     <div id="pos-text" style="text-align:center;font-size: 5rem;">0</div>
     <input id="pos-slider" type="range" min="0" max="1000" value="0" step="1" style="width:100%;">
     <div>
@@ -65,11 +66,15 @@ input[type=range]:focus::-webkit-slider-runnable-track {
         function update()
         {
             fetch('/info')
+            .catch(function(error){
+                document.getElementById("error").style.display = '';
+                document.getElementById("error").innerHTML = 'disconnected' 
+            })
             .then(function(response) {
                 return response.json();
             })    
             .then(function(info) {
-                console.log(info);
+                document.getElementById("error").style.display = 'none';
                 document.getElementById("pos-text").innerHTML = info.pos;
                 document.getElementById("pos-slider").value = info.pos;
 

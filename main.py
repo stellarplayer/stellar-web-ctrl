@@ -50,8 +50,8 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
         if method == 'onPlay':
             print('---------------onPlay')  
             self.status = 'play'
-        elif method == 'onStop':
-            print('---------------onStop')
+        elif method == 'onStopPlay':
+            print('---------------onStopPlay')
             self.status = 'stop'
         elif method == 'onPause':
             play, = args      
