@@ -100,9 +100,11 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
 
         @get('/info')
         def progress():  
+            pos, total = self.player.getProgress()
             return json.dumps({
                 'status': self.status,
-                'pos': self.player.getProgress()
+                'pos': pos,
+                'total': total 
             })
 
         @post('/progress')
