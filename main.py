@@ -12,12 +12,12 @@ import socket
 plugin_dir = os.path.dirname(__file__)
 sys.path.append(plugin_dir)
 
-import qrcode
-from qrcode.image.pure import PymagingImage
 try:
     from bottle import route, run, template, request, response, get, post, TEMPLATE_PATH
 except:
     sys.exit(0)
+
+from . import ss
 
 
 _local_ip = None
@@ -44,6 +44,7 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
         super().__init__(player)
         self.stoped = False
         self.status = 'stop'
+        self.url = ''
         
 
     def handleRequest(self, method, args):
@@ -60,18 +61,23 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
             print(f'handleRequest {method=} {args=}')
 
     def show(self):
+        qrPath = os.path.join(self.player.dataDirectory, f'qr_{os.getpid()}.png')
+        urlPath = os.path.join(self.player.dataDirectory, f'qr_{os.getpid()}.txt')
+        self.url = open(urlPath).read()
         controls = [
+            {'type':'label','name':'手机与电脑接入同一网络内，用手机扫描二维码', 'height': 20, 'hAlign': 'center'},
+            {'type':'link','name': self.url, 'height': 20, 'hAlign': 'center', '@click': 'onUrlClick'},
             {
                 'type': 'image',
-                'value': f'http://{get_host_ip()}:1234/qr'
+                'value': f'{qrPath}'
             }
         ]        
-        self.doModal('main', 400, 400, '', controls)
+        self.doModal('main', 400, 440, '', controls)
 
     def start(self):
         self.stoped = False
         super().start()
-        t = threading.Thread(target=self.webserver_thread, daemon=True)
+        t = threading.Thread(target=self.webserverThread, daemon=True)
         t.start()
         
 
@@ -79,24 +85,10 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
         self.stoped = True
         super().stop()
 
-    def webserver_thread(self):
-        url = f'http://{get_host_ip()}:1234'
-        print(url)
-        img = qrcode.make(url, image_factory=PymagingImage)
-        f = open("qr.png", "wb")
-        img.save(f)
-        f.close()
-
+    def webserverThread(self):
         @get('/')
         def index():
             return template('index.html')
-
-        @get('/qr')
-        def qr():
-            f = open("qr.png", "rb")
-            bytes = f.read()
-            response.set_header('Content-type', 'image/png')
-            return bytes
 
         @get('/info')
         def progress():  
@@ -137,7 +129,7 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
         if not _template_dir in TEMPLATE_PATH:
             TEMPLATE_PATH.append(_template_dir)
 
-        run(host='0.0.0.0', port=1234)
+        run(host='0.0.0.0', port=0, server=ss.WSGIRefServer)
 
    
            
