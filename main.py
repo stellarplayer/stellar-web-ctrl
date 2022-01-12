@@ -13,7 +13,7 @@ plugin_dir = os.path.dirname(__file__)
 sys.path.append(plugin_dir)
 
 try:
-    from bottle import route, run, template, request, response, get, post, TEMPLATE_PATH
+    from bottle import route, run, template, request, response, get, post, static_file, TEMPLATE_PATH
 except:
     sys.exit(0)
 
@@ -64,6 +64,7 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
         qrPath = os.path.join(self.player.dataDirectory, f'qr_{os.getpid()}.png')
         urlPath = os.path.join(self.player.dataDirectory, f'qr_{os.getpid()}.txt')
         self.url = open(urlPath).read()
+        print(self.url)
         controls = [
             {'type':'label','name':'手机与电脑接入同一网络内，用手机扫描二维码', 'height': 20, 'hAlign': 'center'},
             {'type':'link','name': self.url, 'height': 20, 'hAlign': 'center', '@click': 'onUrlClick'},
@@ -88,7 +89,8 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
     def webserverThread(self):
         @get('/')
         def index():
-            return template('index.html')
+            f = open(f'{plugin_dir}/templates/index.html', 'rb')
+            return f.read()
 
         @get('/info')
         def progress():  
@@ -125,6 +127,23 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
         def next():  
             self.player.next()
             return f''
+
+        @get('/playlist')
+        def playlist():
+            result = self.player.getPlaylist()
+            return json.dumps(result)
+
+        @post('/playlist_play')
+        def playlist_play():
+            index = request.forms.get('index')
+            result = self.player.playPlaylist(int(index))
+            return json.dumps(result)
+
+        @post('/set_playlist_cate')
+        def set_playlist_cate():
+            index = request.forms.get('index')
+            result = self.player.setPlaylistCate(int(index))
+            return json.dumps(result)
         
         if not _template_dir in TEMPLATE_PATH:
             TEMPLATE_PATH.append(_template_dir)

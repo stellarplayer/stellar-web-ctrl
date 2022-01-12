@@ -6,12 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>恒星播放器-遥控器</title>
     <style>
-        .sbtn {
-            font-size: 2rem;
-            padding: 1rem 2rem;   
-            background: #E8E8E8;
-            color: #000000;
-            border: solid 1px #000000;         
+        body {
+            margin: 0;
+        }
+        button {
+            font-size: 1.5rem;
+            padding: 0.4rem;
+            background: #00ABF5;
+            color: #ffffff;
+            display: inline-block;
+            margin: 0.6em 0.4em;
+            border: none;
+        }
+
+        button svg {
+            width: 2em;
+            height: 2em;
+            vertical-align: middle;
         }
 
         input[type=range] {
@@ -47,22 +58,163 @@
         input[type=range]:focus::-webkit-slider-runnable-track {
             background: #E8E8E8;
         }
+
+        .playitem {
+            font-size: 1.2em;
+            padding: 1em;
+            white-space: nowrap;
+        }
+
+        .playitem.playing{
+            color: #ffffff;
+            background: #00ABF5;
+        }
     </style>
+    <script src="https://unpkg.com/petite-vue"></script>
 </head>
-<body>
-    <div id="error" style="text-align:center;font-size: 2rem;color:#FF0000"></div>
-    <div id="pos-text" style="text-align:center;font-size: 5rem;">0</div>
-    <input id="pos-slider" type="range" min="0" max="1000" value="0" step="1" style="width:100%;">
-    <div>
-        <button id="stop" class="sbtn" style="display: none;">STOP</button>
-        <button id="play" class="sbtn" style="display: none;">PLAY</button>
-        <button id="pause" class="sbtn" style="display: none;">PAUSE</button>        
+<body @vue:mounted="update" style="height:100vh; display:flex; flex-direction:column;">
+    <div v-if="error.length" style="text-align:center;font-size: 2rem;">{{error}}</div>
+    <div style="text-align:center;font-size: 2rem;margin: 1em 0;">{{pos_text}} / {{total_text}}</div>
+    <input type="range" min="0" :max="total" :value="pos" step="1" style="flex:0;width:100%;" @input="posInput" @change="posChange">
+    <div style="text-align:center;">
+        <button v-if="status=='play'|| status=='pause'" @click="post('prev')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+        </button>
+        <button v-if="status=='play' || status=='pause'" @click="post('stop')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+        <button v-if="status=='stop' || status=='pause'" @click="play(1)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+            </svg>
+        </button>
+        <button v-if="status=='play'" @click="play(0)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </button>        
+        <button v-if="status=='play'|| status=='pause'" @click="post('next')">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+        </button>        
     </div>
-    <div>
-        <button id="prev" class="sbtn" style="display: none;">PREV</button>
-        <button id="next" class="sbtn" style="display: none;">NEXT</button>
+    <div style="padding: 1em;text-align:center;position:relative;box-shadow: 0 5px 10px -10px grey;">
+        <select v-if="playlist" style="font-size:1.2em;padding: .4em;" @change="setPlaylistCate($event.target.selectedIndex)">
+            <option v-for="cate, index in playlist.cates" :selected="index==playlist.cateIndex">{{ cate }}</option>
+        </select>
     </div>
+    <div v-if="playlist" style="flex:auto;overflow:auto;background:#eee;">
+        <div v-for="item of playlist.items" class="playitem" :class="{playing: item.index == playlist.playingIndex}" @click="playPlaylist(item.index)">
+            {{ item.name }}
+        </div>
+    </div>
+    
     <script>
+        PetiteVue.createApp({
+            error: 'connecting ...',
+            pos: 0,
+            total: 0,
+            status: '',
+            playlist: {},
+            get pos_text() {
+                return toHHMMSS(this.pos)
+            },
+            get total_text() {
+                return toHHMMSS(this.total)
+            },
+            update() {
+                fetch('/info')
+                    .catch((e) => {
+                        this.error = 'disconnected' 
+                        this.playlist = {}
+                    })
+                    .then((response) => {
+                        return response.json();
+                    })    
+                    .then((info) => {
+                        this.error = ''
+                        this.pos = info.pos
+                        this.total = info.total
+                        this.status = info.status
+                    })
+                fetch('/playlist')
+                .catch((e) => {
+                        this.error = 'disconnected' 
+                        this.playlist = {}
+                    })
+                    .then((response) => {
+                        return response.json();
+                    })    
+                    .then((playlist) => {
+                        this.playlist = playlist
+                    })
+                setTimeout(this.update, 1000)
+            },
+            posInput(e) {
+                throttle(()=>{
+                    this.setPos(e.target.value)
+                }, 200);
+            },
+            posChange(e) {
+                this.setPos(e.target.value)
+            },
+            setPos(pos)
+            {
+                let formData = new FormData();
+                formData.append('pos', pos);
+                fetch('/progress', {
+                    method: 'POST',
+                    body: formData    
+                }); 
+            },
+            play(flag) {
+                let formData = new FormData();
+                formData.append('play', flag);
+                fetch('/pause', {
+                    method: 'POST',
+                    body: formData    
+                });
+            },
+            post(method) {
+                fetch(`/${method}`, {
+                    method: 'POST', 
+                });
+            },
+            playPlaylist(index) {
+                let formData = new FormData();
+                formData.append('index', index);
+                fetch('/playlist_play', {
+                    method: 'POST',
+                    body: formData    
+                });
+            },
+            setPlaylistCate(index) {
+                let formData = new FormData();
+                formData.append('index', index);
+                fetch('/set_playlist_cate', {
+                    method: 'POST',
+                    body: formData    
+                });
+            }
+
+
+        }).mount()
+
+        var  timerId;
+        function throttle(func, delay) {
+            if (timerId) return
+
+            timerId = setTimeout(function () {
+                func()              
+                timerId  =  undefined;
+            }, delay)
+        }
+
         function toHHMMSS(sec)
         {
             var sec_num = parseInt(sec, 10);
@@ -75,122 +227,6 @@
             if (seconds < 10) {seconds = "0"+seconds;}
             return hours+':'+minutes+':'+seconds;
         }
-
-        function update()
-        {
-            fetch('/info')
-            .catch(function(error){
-                document.getElementById("error").style.display = '';
-                document.getElementById("error").innerHTML = 'disconnected' 
-            })
-            .then(function(response) {
-                return response.json();
-            })    
-            .then(function(info) {
-                document.getElementById("error").style.display = 'none';
-                document.getElementById("pos-text").innerHTML = toHHMMSS(info.pos);
-                document.getElementById("pos-slider").value = info.pos;
-                document.getElementById("pos-slider").max = info.total;
-
-                var btns = document.getElementsByClassName("sbtn");
-                for (var i = 0; i < btns.length; i++ ) {
-                    btns[i].style.display = "none";
-                }
-                if(info.status == 'play')
-                {
-                    document.getElementById("stop").style.display = '';
-                    document.getElementById("pause").style.display = '';
-                    document.getElementById("prev").style.display = '';
-                    document.getElementById("next").style.display = '';
-                }
-                else if(info.status == 'pause')
-                {
-                    document.getElementById("stop").style.display = '';
-                    document.getElementById("play").style.display = '';
-                    document.getElementById("prev").style.display = '';
-                    document.getElementById("next").style.display = '';
-                }
-                else if(info.status == 'stop')
-                {
-                    document.getElementById("play").style.display = '';
-                }
-            });
-        }
-
-        setInterval(update, 1000);
-
-        var  timerId;
-        function throttle(func, delay) {
-            if (timerId) {
-                return
-            }
-
-            timerId  =  setTimeout(function () {
-                func()              
-                timerId  =  undefined;
-            }, delay)
-        }
-
-        function setPos(pos)
-        {
-            let formData = new FormData();
-            formData.append('pos', pos);
-            fetch('/progress', {
-                method: 'POST',
-                body: formData    
-            }); 
-        }
-
-        document.getElementById("pos-slider").addEventListener("input", function(e){
-            throttle(function(){
-                setPos(e.target.value)
-            }, 200);
-        });
-
-        document.getElementById("pos-slider").addEventListener("change", function(e){
-            setPos(e.target.value);
-            if(timerId)
-            {
-                clearTimeout(timerId);
-                timerId = undefined;
-            }
-        });
-
-        document.getElementById("play").addEventListener("click", function(e){
-            let formData = new FormData();
-            formData.append('play', '1');
-            fetch('/pause', {
-                method: 'POST',
-                body: formData    
-            });
-        });
-
-        document.getElementById("pause").addEventListener("click", function(e){
-            let formData = new FormData();
-            formData.append('play', '0');
-            fetch('/pause', {
-                method: 'POST',
-                body: formData    
-            });
-        });
-
-        document.getElementById("stop").addEventListener("click", function(e){
-            fetch('/stop', {
-                method: 'POST', 
-            });
-        });
-
-        document.getElementById("prev").addEventListener("click", function(e){
-            fetch('/prev', {
-                method: 'POST', 
-            });
-        });
-
-        document.getElementById("next").addEventListener("click", function(e){
-            fetch('/next', {
-                method: 'POST', 
-            });
-        });
     </script>
 </body>
 </html>
