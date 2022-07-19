@@ -45,18 +45,23 @@ class MyPlugin(StellarPlayer.IStellarPlayerPlugin):
         self.stoped = False
         self.status = 'stop'
         self.url = ''
+
+    def onPlay(self, *_):
+        print('---------------onPlay')  
+        self.status = 'play'
+
+    def onStopPlay(self, *_):
+        print('---------------onStopPlay')
+        self.status = 'stop'
+
+    def onPause(self, *args):
+        play, = args      
+        self.status = 'play' if play else 'pause'
         
 
     def handleRequest(self, method, args):
-        if method == 'onPlay':
-            print('---------------onPlay')  
-            self.status = 'play'
-        elif method == 'onStopPlay':
-            print('---------------onStopPlay')
-            self.status = 'stop'
-        elif method == 'onPause':
-            play, = args      
-            self.status = 'play' if play else 'pause'
+        if hasattr(self, method) and callable(getattr(self, method)):
+            getattr(self, method)(*args)
         else:
             print(f'handleRequest {method=} {args=}')
 

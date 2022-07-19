@@ -1,5 +1,5 @@
 name=遥控器
 description=通过手机控制播放器
-version=0.5
+version=0.6
 url=https://github.com/stellarplayer/stellar-web-ctrl
 type=其它
